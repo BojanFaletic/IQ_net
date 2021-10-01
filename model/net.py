@@ -1,6 +1,7 @@
 import torch.optim as optim
 from .layers import LinearMask
 import torch
+import torch.nn as nn
 import numpy as np
 
 
@@ -11,6 +12,8 @@ class Net:
 
         expand_sz = data_width // 2
         self.data = torch.tensor([0, 1] * expand_sz, dtype=torch.float)
+        #self.data = torch.reshape(self.data, (1, -1))
+
         self.net = LinearMask(data_width, mask_size)
 
     @staticmethod
@@ -28,5 +31,33 @@ class Net:
                 accuracy += Net.is_close(out, expected)
         return accuracy / self.data_width
 
+    def train(self):
+        criterion = nn.MSELoss()
+        optimizer = optim.SGD(self.net.parameters(), lr=1e-3,
+                              momentum=0.4, nesterov=True)
+        epochs = 100
+        print_interval = 10
 
+        loss_hist = []
 
+        for e in range(epochs):
+            acc_loss = 0
+            for m in range(self.data_width-self.mask_size):
+                mm = np.arange(self.mask_size) + m
+                # learn few times
+                for i in range(10):
+                    optimizer.zero_grad()
+
+                    out = self.net(self.data, mm)
+                    expected = self.data[mm]
+
+                    loss = criterion(out, expected)
+                    loss.backward()
+
+                    acc_loss += loss.detach().item()
+
+            loss_hist.append(acc_loss)
+            if e % print_interval == print_interval - 1:
+                acc = self.eval() * 100
+                print(f'ep: {e : 2d}, loss: {acc_loss :.2f}, acc: {acc :.2f}%')
+        return loss_hist
