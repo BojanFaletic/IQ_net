@@ -9,6 +9,9 @@
 - Transformer network: https://arxiv.org/abs/1911.06455
 - Single head is better: https://arxiv.org/abs/2106.09650
 
+## Video lectures
+- What do neural networks learn: https://youtu.be/FSfN2K3tnJU
+
 ## Random thoughts
 
 Width of network is used for specifying resolution of given function.
