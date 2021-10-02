@@ -19,10 +19,25 @@ class Net:
     def is_close(a, b, atol=0.1):
         return np.isclose(a, b, atol=atol).sum()
 
+    def predict(self):
+        prediction_list = []
+        expected_list = []
+
+        with torch.no_grad():
+            for m in range(self.data_width - self.mask_size + 1):
+                mm = np.arange(self.mask_size) + m
+                out = self.net(self.data, mm)
+                expected = self.data[mm]
+
+                prediction_list.append(out.detach().item())
+                expected_list.append(expected.detach().item())
+        prediction_list = [round(x, 2) for x in prediction_list]
+        return prediction_list, expected_list
+
     def eval(self):
         accuracy = 0
         with torch.no_grad():
-            for m in range(self.data_width - self.mask_size):
+            for m in range(self.data_width - self.mask_size + 1):
                 mm = np.arange(self.mask_size) + m
                 out = self.net(self.data, mm)
                 expected = self.data[mm]
@@ -32,7 +47,7 @@ class Net:
 
     def train(self):
         criterion = nn.MSELoss()
-        optimizer = optim.SGD(self.net.parameters(), lr=1e-3,
+        optimizer = optim.SGD(self.net.parameters(), lr=1e-2,
                               momentum=0.4, nesterov=True)
         epochs = 100
         print_interval = 10
@@ -42,7 +57,7 @@ class Net:
 
         for e in range(epochs):
             acc_loss = 0
-            for m in range(self.data_width-self.mask_size):
+            for m in range(self.data_width-self.mask_size + 1):
                 mm = np.arange(self.mask_size) + m
                 # learn few times
                 for i in range(single_mask_train):
@@ -59,7 +74,7 @@ class Net:
                     optimizer.step()
 
             loss_hist.append(acc_loss)
-            if e % (print_interval + 1) == print_interval:
+            if e % print_interval == 0:
                 acc = self.eval() * 100
                 print(f'ep: {e : 2d}, loss: {acc_loss :.2f}, acc: {acc :.2f}%')
         return loss_hist
