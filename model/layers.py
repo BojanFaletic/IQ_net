@@ -68,7 +68,7 @@ class Attention(nn.Module):
             hypothesis = o_norm_t[i]
             hypothesis_tile = torch.tile(hypothesis, (self.in_features, 1))
 
-            print(x.shape, hypothesis_tile.shape)
+            # element wise product to measure importance of each feature
             out_features[i] = hypothesis_tile.t() * x
 
         return out_features
