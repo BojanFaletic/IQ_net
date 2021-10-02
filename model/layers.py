@@ -44,3 +44,31 @@ class LinearMask(nn.Module):
     def forward(self, input, mask):
         return LinearMaskActivation.apply(input, self.fc.weight,
                                           self.fc.bias, mask)
+
+
+class Attention(nn.Module):
+    def __init__(self, in_features, hypothesis_cnt=1):
+        super(Attention, self).__init__()
+        self.in_features = in_features
+        self.hypothesis_cnt = hypothesis_cnt
+
+        # attention is stored in weights of linear layer
+        # this is form of self attention
+        self.attn = nn.Linear(in_features, hypothesis_cnt, bias=False)
+
+    def forward(self, x):
+        o = self.attn(x)
+
+        # normalize features
+        o_norm = torch.softmax(o, dim=0)
+        o_norm_t = torch.transpose(o_norm, dim0=0, dim1=1)
+
+        out_features = torch.zeros((self.hypothesis_cnt, *x.shape))
+        for i in range(self.hypothesis_cnt):
+            hypothesis = o_norm_t[i]
+            hypothesis_tile = torch.tile(hypothesis, (self.in_features, 1))
+
+            print(x.shape, hypothesis_tile.shape)
+            out_features[i] = hypothesis_tile.t() * x
+
+        return out_features

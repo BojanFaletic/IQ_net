@@ -37,6 +37,16 @@ class Net:
         prediction_list = [np.round(x, 2) for x in prediction_list]
         return prediction_list, expected_list
 
+    def weights(self):
+        np_weights = self.net.fc.weight.detach().numpy()
+        # allign weights
+        for i in range(self.mask_size):
+            np_weights[i] = np.roll(np_weights[i], -i)
+        return np_weights.T
+
+    def bias(self):
+        return self.net.fc.bias.detach().numpy()
+
     def eval(self):
         prediction, expectation = self.predict()
         accuracy = np.sum([self.is_close(a, b) for a, b in
@@ -45,10 +55,12 @@ class Net:
         total_items = len(prediction) * self.mask_size
         return accuracy / total_items
 
-    def train(self):
+    def train(self, exit_when_learned=True):
         criterion = nn.MSELoss()
         optimizer = optim.SGD(self.net.parameters(), lr=1e-3,
                               momentum=0.4, nesterov=True)
+        optimizer = optim.Adam(self.net.parameters())
+
         epochs = 200
         print_interval = 10
         single_mask_train = 100
@@ -77,6 +89,6 @@ class Net:
             if e % print_interval == 0:
                 acc = self.eval() * 100
                 print(f'ep: {e : 2d}, loss: {acc_loss :.2f}, acc: {acc :.2f}%')
-                if acc > 99.99:
+                if acc > 99.99 and exit_when_learned:
                     break
         return loss_hist
