@@ -12,7 +12,6 @@ class Net:
 
         expand_sz = data_width // 2
         self.data = torch.tensor([0, 1] * expand_sz, dtype=torch.float)
-        #self.data = torch.reshape(self.data, (1, -1))
 
         self.net = LinearMask(data_width, mask_size)
 
@@ -37,6 +36,7 @@ class Net:
                               momentum=0.4, nesterov=True)
         epochs = 100
         print_interval = 10
+        single_mask_train = 10
 
         loss_hist = []
 
@@ -45,7 +45,7 @@ class Net:
             for m in range(self.data_width-self.mask_size):
                 mm = np.arange(self.mask_size) + m
                 # learn few times
-                for i in range(10):
+                for i in range(single_mask_train):
                     optimizer.zero_grad()
 
                     out = self.net(self.data, mm)
@@ -56,8 +56,10 @@ class Net:
 
                     acc_loss += loss.detach().item()
 
+                    optimizer.step()
+
             loss_hist.append(acc_loss)
-            if e % print_interval == print_interval - 1:
+            if e % (print_interval + 1) == print_interval:
                 acc = self.eval() * 100
                 print(f'ep: {e : 2d}, loss: {acc_loss :.2f}, acc: {acc :.2f}%')
         return loss_hist
