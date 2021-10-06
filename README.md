@@ -4,6 +4,11 @@
 * Main idea is to mask part of input and try to predict masked data.
 * If input function is periodic then prediction must be generalizable to some degree.
 
+![image](img/points.jpg)
+<br>
+*Image made of patterns*
+<br>
+
 ## References
 - Geometric deep learning: https://arxiv.org/abs/2104.13478
 - Transformer network: https://arxiv.org/abs/1911.06455
