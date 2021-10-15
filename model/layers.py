@@ -60,8 +60,8 @@ class Attention(nn.Module):
         o = self.attn(x)
 
         # normalize features
-        o_norm = torch.softmax(o, dim=0)
-        o_norm_t = torch.transpose(o_norm, dim0=0, dim1=1)
+        o_norm_t = torch.softmax(o, dim=1)
+        #o_norm_t = torch.transpose(o_norm, dim0=0, dim1=1)
 
         out_features = torch.zeros((self.hypothesis_cnt, *x.shape))
         for i in range(self.hypothesis_cnt):
@@ -69,6 +69,6 @@ class Attention(nn.Module):
             hypothesis_tile = torch.tile(hypothesis, (self.in_features, 1))
 
             # element wise product to measure importance of each feature
-            out_features[i] = hypothesis_tile.t() * x
+            out_features[i] = hypothesis_tile * x
 
         return out_features
