@@ -5,9 +5,9 @@ import torch.nn as nn
 class Attention(nn.Module):
     ''' softmax attention '''
     def __init__(self, temperature, dropout=0.1):
-        super().__init__()
+        super(Attention, self).__init__()
         self.temperature = temperature
-        self.dropout = nn.Dropout(dropout)
+        self.dr = nn.Dropout(dropout)
 
     def forward(self, q, k, v, mask=None):
         attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
@@ -15,15 +15,15 @@ class Attention(nn.Module):
         if mask is not None:
             attn = attn.masked_fill(mask == 0, -1e9)
 
-        attn = self.dropout(torch.softmax(attn, dim=-1))
+        attn = self.dr(torch.softmax(attn, dim=-1))
         output = torch.matmul(attn, v)
 
         return output, attn
 
 
-class MultHeadAttention(nn.Module):
+class MultiHeadAttention(nn.Module):
     def __init__(self, n_head, d_model, d_k, d_v, dropout=0.1):
-        super().__init__()
+        super(MultiHeadAttention, self).__init__()
 
         self.n_head = n_head
         self.d_k = d_k
@@ -32,6 +32,7 @@ class MultHeadAttention(nn.Module):
         self.w_qs = nn.Linear(d_model, n_head * d_k, bias=False)
         self.w_ks = nn.Linear(d_model, n_head * d_k, bias=False)
         self.w_vs = nn.Linear(d_model, n_head * d_v, bias=False)
+        self.fc = nn.Linear(n_head * d_v, d_model, bias=False)
 
         self.attention = Attention(temperature=d_k ** 0.5)
 
@@ -47,7 +48,7 @@ class MultHeadAttention(nn.Module):
         # [b x lq x (n*dv)]
         # separate into different heads: [b x lq x n x dv]
         q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)
-        k = self.w_sz(k).view(sz_b, len_k, n_head, d_k)
+        k = self.w_ks(k).view(sz_b, len_k, n_head, d_k)
         v = self.w_vs(v).view(sz_b, len_v, n_head, d_v)
 
         # transpose into: [b x n x lq x dv]
@@ -71,7 +72,7 @@ class MultHeadAttention(nn.Module):
 
 class FeedForward(nn.Module):
     def __init__(self, d_in, d_hid, dropout=0.1):
-        super().__init__()
+        super(FeedForward, self).__init__()
         self.w_1 = nn.Linear(d_in, d_hid)
         self.w_2 = nn.Linear(d_hid, d_in)
         self.layer_norm = nn.LayerNorm(d_in, eps=1e-6)
@@ -90,8 +91,9 @@ class FeedForward(nn.Module):
 
 class EncoderLayer(nn.Module):
     def __init__(self, d_model, d_inner, n_head, d_k, d_v, dropout=0.1):
-        super().__init__()
-        self.slf_attn = Attention(n_head, d_model, d_k, d_v, dropout=dropout)
+        super(EncoderLayer, self).__init__()
+        self.slf_attn = MultiHeadAttention(n_head, d_model, d_k, d_v,
+                                           dropout=dropout)
         self.pos_ff = FeedForward(d_model, d_inner, dropout=dropout)
 
     def forward(self, enc_input, slf_attn_mask=None):
@@ -103,9 +105,11 @@ class EncoderLayer(nn.Module):
 
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, d_inner, n_head, d_k, d_v, dropout=0.1):
-        super().__init__()
-        self.slf_attn = Attention(n_head, d_model, d_k, d_v, dropout=dropout)
-        self.enc_attn = Attention(n_head, d_model, d_k, d_v, dropout=dropout)
+        super(DecoderLayer, self).__init__()
+        self.slf_attn = MultiHeadAttention(n_head, d_model, d_k, d_v,
+                                           dropout=dropout)
+        self.enc_attn = MultiHeadAttention(n_head, d_model, d_k, d_v,
+                                           dropout=dropout)
         self.pos_ff = FeedForward(d_model, d_inner, dropout=dropout)
 
     def forward(self, dec_input, enc_output,
@@ -143,16 +147,16 @@ class PositionalEncoding(nn.Module):
 
     def _get_sinusoid_encoding_table(self, n_position, d_hid):
         def get_position_angle_vec(position, k=10000):
-            return [position / torch.pow(torch.tensor(k), 2 * (hid_j // 2)) /
+            return [position / k ** (2 * (hid_j // 2)) /
                     d_hid for hid_j in range(d_hid)]
 
-            sinusoid_table = torch.tensor([
-                get_position_angle_vec(pos_i) for pos_i in range(n_position)])
+        sinusoid_table = torch.tensor([
+            get_position_angle_vec(pos_i) for pos_i in range(n_position)])
 
-            sinusoid_table[:, 0::2] = torch.sin(sinusoid_table[:, 0::2])
-            sinusoid_table[:, 1::2] = torch.cos(sinusoid_table[:, 1::2])
+        sinusoid_table[:, 0::2] = torch.sin(sinusoid_table[:, 0::2])
+        sinusoid_table[:, 1::2] = torch.cos(sinusoid_table[:, 1::2])
 
-            return sinusoid_table.unsqueeze(0)
+        return sinusoid_table.unsqueeze(0)
 
     def forward(self, x):
         return x + self.pos_table[:, :x.size(1)].clone().detach()
@@ -162,13 +166,13 @@ class Encoder(nn.Module):
     def __init__(self, n_src_vocab, d_word_vec, n_layers, n_head, d_k, d_v,
                  d_model, d_inner, pad_idx, dropout=0.1, n_position=200,
                  scale_embed=False):
-        super().__init__()
+        super(Encoder, self).__init__()
 
         self.src_word_emb = nn.Embedding(n_src_vocab, d_word_vec,
                                          padding_idx=pad_idx)
         self.position_enc = PositionalEncoding(d_word_vec,
                                                n_position=n_position)
-        self.dropout = nn.Dropout(p=dropout)
+        self.dr = nn.Dropout(p=dropout)
         self.layer_stack = nn.ModuleList([
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
@@ -182,7 +186,7 @@ class Encoder(nn.Module):
         enc_output = self.src_word_emb(src_seq)
         if self.scale_embed:
             enc_output *= self.d_model ** 0.5
-        enc_output = self.dropout(self.position_enc(enc_output))
+        enc_output = self.dr(self.position_enc(enc_output))
         enc_output = self.layer_norm(enc_output)
 
         for enc_layer in self.layer_stack:
@@ -199,7 +203,7 @@ class Decoder(nn.Module):
     def __init__(self, n_trg_vocab, d_word_vec, n_layers, n_head, d_k, d_v,
                  d_model, d_inner, pad_idx, n_position=200, dropout=0.1,
                  scale_embed=False):
-        super().__init__()
+        super(Decoder, self).__init__()
 
         self.trg_world_emb = nn.Embedding(n_trg_vocab, d_word_vec,
                                           padding_idx=pad_idx)
@@ -223,7 +227,7 @@ class Decoder(nn.Module):
         dec_output = self.dropout(self.position_enc(dec_output))
         dec_output = self.layer_norm(dec_output)
 
-        for dec_layer in self.layer_norm:
+        for dec_layer in self.layer_stack:
             dec_output, dec_slf_attn, dec_enc_attn = dec_layer(
                 dec_output, enc_output, slf_attn_mask=trg_mask,
                 dec_enc_attn_mask=src_mask)
@@ -241,7 +245,7 @@ class Transformer(nn.Module):
                  n_layers=6, n_head=8, d_k=64, d_v=64, dropout=0.1,
                  n_position=200, trg_emb_prj_weight_sharing=True,
                  emb_src_trg_weight_sharing=True, scale_emb_or_prj='prj'):
-        super().__init__()
+        super(Transformer, self).__init__()
 
         self.src_pad_idx, self.trg_pad_idx = src_pad_idx, trg_pad_idx
 
@@ -272,7 +276,7 @@ class Transformer(nn.Module):
             n_trg_vocab=n_trg_vocab, n_position=n_position,
             d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
             n_layers=n_layers, n_head=n_head, d_k=d_k, d_v=d_v,
-            pad_idx=trg_pad_idx, dropout=dropout, scale_emb=scale_emb)
+            pad_idx=trg_pad_idx, dropout=dropout, scale_embed=scale_emb)
 
         self.trg_word_prj = nn.Linear(d_model, n_trg_vocab, bias=False)
 
